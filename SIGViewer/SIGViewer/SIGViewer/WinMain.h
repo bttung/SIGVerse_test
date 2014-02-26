@@ -14,6 +14,11 @@
 #include <RendererModules/Ogre/CEGUIOgreRenderer.h>
 #include <libssh2.h>
 
+#include "Utility.h"
+
+#define IMAGE_WIDTH		320		// 640
+#define IMAGE_HEIGHT	240		// 480
+ 
 class SgvMain : public BaseApplication
 {
 public:
@@ -101,20 +106,10 @@ protected:
 
     bool startRequest(const CEGUI::EventArgs &e);
 
-    void startSunlight();
-
     bool agentView1(const CEGUI::EventArgs &e);
     bool agentView2(const CEGUI::EventArgs &e);
     bool agentView3(const CEGUI::EventArgs &e);
     bool agentView4(const CEGUI::EventArgs &e);
-
-	bool cameraView_Down  (const CEGUI::EventArgs &e);
-	bool cameraView_Move  (const CEGUI::EventArgs &e);
-	bool cameraView_Up    (const CEGUI::EventArgs &e);
-    bool cameraView_Sized (const CEGUI::EventArgs &e);
-    bool cameraView_Sizing(const CEGUI::EventArgs &e);
-
-    int cameraView_Select(const CEGUI::EventArgs &e, int *result);
 
 	bool startService1(const CEGUI::EventArgs &e);
 	bool startService2(const CEGUI::EventArgs &e);
@@ -190,6 +185,12 @@ ass, const char *host);
 
 	bool checkRequestFromService();
 
+	//debug
+	Utility m_util;
+	int m_frameNum;
+
+
+
 protected:
 	Ogre::RaySceneQuery *mRaySceneQuery;// The ray scene query pointer
 	bool mLMouseDown, mRMouseDown;		
@@ -208,10 +209,6 @@ protected:
 	std::string mPort;                  
 	CEGUI::Renderer *mGUIRenderer;      // our CEGUI renderer
 
-    bool mMove;                         
-    int  mTidx;                         
-    int  mBm[2];                        
-                          
 	sigverse::SgvSocket *mSock;
 
 	Sgv::ViewerService *mService;
@@ -224,8 +221,6 @@ protected:
 	std::vector<Ogre::Viewport*> mViews;
 
 	std::vector<CEGUI::Window*> mSubWindows;
-
-	std::vector<CEGUI::Window*> mSubViews;
 
 	CEGUI::Window *mTelop;
 	//CEGUI::Listbox *mTelop;

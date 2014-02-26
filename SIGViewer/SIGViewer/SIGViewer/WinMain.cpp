@@ -3,7 +3,6 @@
 #include "SgvEntity.h"
 #include "SgvSocket.h"
 #include "ViewerService.h"
-#include "RenderService.h"
 #include "SIGService.h"
 #include "binary.h"
 
@@ -21,14 +20,21 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+#define TRANSPORT_DATA_SIZE		16384 //65536		// origin 16384
+
 #define LIBSSH2_INIT_NO_CRYPTO 0x0001
-#pragma comment( lib, "libssh2.lib")
+#pragma comment( lib , "libssh2.lib" )
 
-#pragma comment( lib, "shlwapi.lib")
+#pragma comment( lib,"shlwapi.lib")
 
+//#define FD_SETSIZE 32
+//////////////////////////////////////////////////////////////////////////////
+//getFileName
+//////////////////////////////////////////////////////////////////////////////
 char *getFileName(char *lpszPath)
 {
     char    *lpszPtr=lpszPath;
+
     while(*lpszPtr != '\0')
     {
         if(IsDBCSLeadByte(*lpszPtr) == 0)
@@ -49,17 +55,6 @@ enum {
 	AUTH_PUBLICKEY
 };
 
-static const double R_DX = 0.92;
-
-static const double R_DY = 0.90;
-
-static const double R_DD = 10.0;
-
-static const int MAX_SUBVIEW = 4;
-
-static const int MIN_SIZE = 100;
-
-static Ogre::Light* sunlight;
 
 //-------------------------------------------------------------------------------------
 SgvMain::SgvMain(void)
@@ -85,9 +80,13 @@ SgvMain::~SgvMain(void)
 {
 	CEGUI::OgreRenderer::destroySystem();
 
-	if (mSock != NULL)    delete mSock;
-	if (mService != NULL) delete mService;
-   
+	if(mSock != NULL) {
+		delete mSock;
+	}
+
+	if(mService != NULL) {
+		delete mService;
+	}
 	if(m_pX3D != NULL){
 		delete m_pX3D;
 		m_pX3D = NULL;
@@ -110,7 +109,9 @@ void SgvMain::createScene(void)
 	sprintf_s(mSettingPath, 128, inipath.c_str());
 
 	Sgv::LogFactory::setLog(0, Sgv::LogPtr(new Sgv::Log(Sgv::Log::DEBUG, "main", 
-		Sgv::LogFileWriterAutoPtr(new Sgv::DelayFileWriter<Sgv::FileLock>("SIGVerse.log")))) );
+		Sgv::LogFileWriterAutoPtr(new Sgv::DelayFileWriter<Sgv::FileLock>("SIGVerse.log"))))
+		);
+  
 	mLog = Sgv::LogFactory::getLog(0);
 
 	TCHAR pathText[256];
@@ -145,49 +146,41 @@ void SgvMain::createScene(void)
 	Ogre::MeshManager::getSingleton().createPlane("MyPlane",
 		Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,
 		*plane,
-		3000, 3000, 50, 50, true, 1, 5, 5, Ogre::Vector3::UNIT_Z);
+		3000, 3000,50, 50, true, 1, 5, 5, Ogre::Vector3::UNIT_Z);
 
-	GetPrivateProfileString("PLANE", "PLANE", '\0', pathText, 1024, mSettingPath);
-	if (0 < strlen(pathText)) {
-        Ogre::Entity* entGround = mSceneMgr->createEntity("GroundEntity", "MyPlane");
-        mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(entGround);
-        // (Ex.)"Examples/Rockwall"
-        entGround->setMaterialName(pathText);
-        entGround->setCastShadows(false);
-  
-	} else {
-	    Ogre::MaterialPtr tmp = Ogre::MaterialManager::getSingleton().getByName("MA_White");
-	    Ogre::MaterialPtr tmat = tmp->clone("Plane");
-	    tmat->setAmbient(1.0f, 1.0f, 1.0f);
 
-	    int planeSize = 1500;
-	    int planeStep = 10;
-
-	    mPlane->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_LIST);
-	    Ogre::ColourValue col(0.0f, 0.0f, 0.6f);
-
-	    for (int x=-planeSize; x<=planeSize; x+=planeStep) {
-		    mPlane->position(x, 0.0, -planeSize);
-		    mPlane->colour(col);
-
-		    mPlane->position(x, 0.0, planeSize);
-		    mPlane->colour(col);
-	    }
-
-	    for (int z=-planeSize; z<=planeSize; z+=planeStep) {
-		    mPlane->position(-planeSize, 0.0, z);
-		    mPlane->colour(col);
-
-		    mPlane->position(planeSize, 0.0, z);
-		    mPlane->colour(col);
-	    }
-	    mPlane->setQueryFlags(false);
-	    mPlane->end();
-	}
-
-    mPlane->setCastShadows(false);
+	Ogre::MaterialPtr tmp = Ogre::MaterialManager::getSingleton().getByName("MA_White");
+	Ogre::MaterialPtr tmat = tmp->clone("Plane");
+	tmat->setAmbient(1.0f, 1.0f, 1.0f);
 
 	mAxis = mSceneMgr->createManualObject("axis");
+
+	int planeSize = 1500;
+	int planeStep = 10;
+	mPlane->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_LIST);
+
+	Ogre::ColourValue col(0.0f, 0.0f, 0.6f);
+
+	for (int x=-planeSize; x<=planeSize; x+=planeStep)
+	{
+		mPlane->position(x, 0.0, -planeSize);
+		mPlane->colour(col);
+
+		mPlane->position(x, 0.0, planeSize);
+		mPlane->colour(col);
+	}
+
+	for (int z=-planeSize; z<=planeSize; z+=planeStep)
+	{
+		mPlane->position(-planeSize, 0.0, z);
+		mPlane->colour(col);
+
+		mPlane->position(planeSize, 0.0, z);
+		mPlane->colour(col);
+	}
+	mPlane->setQueryFlags(false);
+	mPlane->end();
+
 	mAxis->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_LIST);
 	mAxis->position(0.0f, 0.0f, 0.0f);
 
@@ -215,33 +208,13 @@ void SgvMain::createScene(void)
 	mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(mPlane);
 	mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(mAxis);
 
-#ifdef _RIGHT_VERSION
     mSceneMgr->setAmbientLight(Ogre::ColourValue(0.8f, 0.8f, 0.8f));
+	Ogre::Light *l = mSceneMgr->createLight("MainLight");
 	l->setPosition(1000.0f, 1000.0f, -1000.0f);
 	l->setSpecularColour(0.8f, 0.8f, 0.8f);
-    l->setType( Light::LightTypes::LT_DIRECTIONAL );
-	Ogre::Light *l = mSceneMgr->createLight("MainLight");
-#endif
+    //mSceneMgr->setSkyDome(true, "Examples/CloudySky", 5, 8);
 
-    mSceneMgr->setAmbientLight(Ogre::ColourValue(0.8f, 0.8f, 0.8f));
-    mSceneMgr->setShadowTechnique(Ogre::SHADOWTYPE_STENCIL_ADDITIVE);
-
-    sunlight = mSceneMgr->createLight("sunlight");
-    sunlight->setType(Ogre::Light::LT_DIRECTIONAL);
-    sunlight->setDiffuseColour(Ogre::ColourValue(.5, .5, .5));
-    sunlight->setSpecularColour(Ogre::ColourValue(10.0, 10.0, 10.0));
-    sunlight->setDirection(Ogre::Vector3(0, -1, 0));  
-
-	GetPrivateProfileString("SKYPLANE", "SKYPLANE", '\0', pathText, 1024, mSettingPath);
-	if (0 < strlen(pathText)) {
-        Ogre::Plane sky_plane;
-        sky_plane.d = 3000;
-        sky_plane.normal = Ogre::Vector3::NEGATIVE_UNIT_Y; 
-        // (Ex.) "Examples/CloudySky", "Examples/SpaceSkyPlane"
-        mSceneMgr->setSkyPlane(true, sky_plane, pathText, 3000, 50, true, 1.5f, 150, 150);
-	}
-
-    mHeadNode = mSceneMgr->getRootSceneNode()->createChildSceneNode(Ogre::Vector3(0, 0, 0));
+	mHeadNode = mSceneMgr->getRootSceneNode()->createChildSceneNode(Ogre::Vector3(0, 0, 0));
 
     // Position it at 500 in Z direction
     mCamera->setPosition(Ogre::Vector3(103.4f, 34.3f, 65.9f));
@@ -255,13 +228,14 @@ void SgvMain::createScene(void)
 	mTex = Ogre::TextureManager::getSingleton().createManual(
 		"RttTex",
 		Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, Ogre::TEX_TYPE_2D,
-		320, 240, 0, Ogre::PF_R8G8B8, Ogre::TU_RENDERTARGET);
+		IMAGE_WIDTH, IMAGE_HEIGHT, 0, Ogre::PF_R8G8B8, Ogre::TU_RENDERTARGET);
 
 	mDstTex = Ogre::TextureManager::getSingleton().createManual(
 		"DstTex",
 		Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, Ogre::TEX_TYPE_2D,
-		320, 240, 0, Ogre::PF_B8G8R8, Ogre::TU_RENDERTARGET);
+		IMAGE_WIDTH, IMAGE_HEIGHT, 0, Ogre::PF_B8G8R8, Ogre::TU_RENDERTARGET);
 
+	// 
 	Ogre::RenderTexture *renderTexture = mTex->getBuffer()->getRenderTarget();
 	Ogre::RenderTexture *renderDstTexture = mDstTex->getBuffer()->getRenderTarget();
 
@@ -269,7 +243,8 @@ void SgvMain::createScene(void)
 	mCaptureCamera->setNearClipDistance(Ogre::Real(1.0f));
 	mCaptureCamera->setFarClipDistance(Ogre::Real(3000.0f));
 
-	Ogre::Viewport *port = renderTexture->addViewport(mCaptureCamera);
+
+	Ogre::Viewport * port = renderTexture->addViewport(mCaptureCamera);
 	port->setBackgroundColour(mBackGroundColor);
 	port->setOverlaysEnabled(false);
 	renderTexture->setAutoUpdated(true);
@@ -284,93 +259,21 @@ void SgvMain::createScene(void)
 	//for detect Entities
 	m_VolQuery = mSceneMgr->createPlaneBoundedVolumeQuery(Ogre::PlaneBoundedVolumeList());
 
-	Ogre::Viewport *distport = renderDstTexture->addViewport(mDistanceCamera);
+	Ogre::Viewport * distport = renderDstTexture->addViewport(mDistanceCamera);
 	distport->setBackgroundColour(mBackGroundColor);
 	distport->setOverlaysEnabled(false);
 	distport->setBackgroundColour(Ogre::ColourValue(1.0f, 1.0f, 1.0f));
 
 	renderDstTexture->setAutoUpdated(true);
 
-#ifdef _OLD_VERSION
-    mLog = Sgv::LogFactory::getLog(0);
+	//mLog = Sgv::LogFactory::getLog(0);
 	// ----------------------------------------------
 	// ----------------------------------------------
-	m_pX3D = new Sgv::X3D();
-	if (!m_pX3D->init())
-	{
-		mLog->err("failed to initialize X3D object");
-	}
-#endif
-
-}
-
-/*! 
- * @brief
- */
-void SgvMain::startSunlight() {
-
-	const double orange[3] = {255.0, 135.0, 0.0}, white[3] = {255.0, 255.0, 255.0}; 
-	double x = 0.0, xmax = 3, r = 0.0, rgb[3] = {255.0, 255.0, 255.0}; 
-    int tcnt = 0, tmax = 100, scnt = 0, smax = 4;   
-
-	while (true) {
-        tcnt++;
-		switch (scnt) {
-			case 0: {
-				for (int i = 0; i < 3; i++) {
-                    rgb[i] -= ((white[i] - orange[i]) / (double)tmax);
-				}
-				x += (xmax / tmax);
-                r = 1.0 - (x / xmax);
-
-                sunlight->setSpecularColour(Ogre::ColourValue(rgb[0] * r, rgb[1] * r, rgb[2] * r));
-                sunlight->setDirection(Ogre::Vector3(x, -1, 0));  
-
-				if (tcnt >= tmax) {
-                     tcnt = 0;
-                     scnt = 2;
-				}
-
-                break;
-			}
-            /*
-			case 1: {
-				if (tcnt >= tmax) {
-                     tcnt = 0;
-                     scnt+=2;
-				}
-                break;
-			}
-            */
-			case 2: {
-				if (tcnt >= tmax) {
-                     tcnt = 0;
-                     scnt++;
-                     x = -xmax;
-				}
-                break;
-			}
-			case 3: {
-
-				for (int i = 0; i < 3; i++) {
-                    rgb[i] += ((white[i] - orange[i]) / (double)tmax);
-				}
-                x += (xmax / tmax);
-                r = 1.0 - ((-1 * x) / xmax); 
-
-                sunlight->setSpecularColour(Ogre::ColourValue(rgb[0] * r, rgb[1] * r, rgb[2] * r));
-                sunlight->setDirection(Ogre::Vector3(x, -1, 0));  
-
-				if (tcnt >= tmax) {
-                     tcnt = 0;
-                     scnt = 0;
-				}
-                break;
-			}
-		}
-  
-        Sleep(100);
-	}
+	//m_pX3D = new Sgv::X3D();
+	//if (!m_pX3D->init())
+	//{
+	//	mLog->err("failed to initialize X3D object");
+	//}
 
 }
 
@@ -391,32 +294,45 @@ void SgvMain::createInitWindow()
 	TCHAR strText[128];
 	GetPrivateProfileString("LOGIN","SERVICE_NAME", '\0',strText, 1024, mSettingPath);
 
-	if(strText[0] == '\0') sname->setText("SIGViewer");
-	else sname->setText(strText);
+	if(strText[0] == '\0') 
+		sname->setText("SIGViewer");
+	else
+		sname->setText(strText);
+
 
 	CEGUI::Window *serverip = wmgr.createWindow("OgreTray/Editbox", "ServerIP");
 	serverip->setSize(CEGUI::UVector2(CEGUI::UDim(0.4f, 0.0f), CEGUI::UDim(0.11f, 0.0f)));
     serverip->setPosition(CEGUI::UVector2(CEGUI::UDim(0.55f, 0.0f), CEGUI::UDim(0.15f, 0.0f)));
 
+
 	GetPrivateProfileString("LOGIN","SERVER_IP",'\0',strText, 1024, mSettingPath);
 
-	if(strText[0] == '\0') serverip->setText("localhost");
-	else serverip->setText(strText);
+	if(strText[0] == '\0') 
+		serverip->setText("localhost");
+	else
+		serverip->setText(strText);
+
 
 	CEGUI::Window *port = wmgr.createWindow("OgreTray/Editbox", "PortNumber");
 	port->setSize(CEGUI::UVector2(CEGUI::UDim(0.4f, 0.0f), CEGUI::UDim(0.11f, 0.0f)));
     port->setPosition(CEGUI::UVector2(CEGUI::UDim(0.55f, 0.0f), CEGUI::UDim(0.3f, 0.0f)));
 
 	GetPrivateProfileString("LOGIN","SERVER_PORT", '\0',strText, 1024, mSettingPath);
-	if(strText[0] == '\0') port->setText("9000");
-	else port->setText(strText);
+	if(strText[0] == '\0') 
+		port->setText("9000");
+	else
+		port->setText(strText);
+
 
 	CEGUI::Checkbox *ssh_checkbox = static_cast<CEGUI::Checkbox*>(wmgr.createWindow("OgreTray/Checkbox","ssh_check"));
+	//CEGUI::Window *ssh_checkbox = wmgr.createWindow("OgreTray/Checkbox", "ssh_check");
 	ssh_checkbox->setSize(CEGUI::UVector2(CEGUI::UDim(0.5f, 0.0f), CEGUI::UDim(0.11f, 0.0f)));
     ssh_checkbox->setPosition(CEGUI::UVector2(CEGUI::UDim(0.45f, 0.0f), CEGUI::UDim(0.45f, 0.0f)));
 
 	GetPrivateProfileString("LOGIN","SSH_CHECK", '\0',strText, 1024, mSettingPath);
-	if(strcmp(strText, "true") == 0) ssh_checkbox->setSelected(true);
+	if(strcmp(strText, "true") == 0)
+		ssh_checkbox->setSelected(true);
+
 
 	CEGUI::Window *username = wmgr.createWindow("OgreTray/Editbox", "UserName");
 	username->setSize(CEGUI::UVector2(CEGUI::UDim(0.4f, 0.0f), CEGUI::UDim(0.1f, 0.0f)));
@@ -427,7 +343,9 @@ void SgvMain::createInitWindow()
 	}
 
 	GetPrivateProfileString("LOGIN","SSH_USERNAME", '\0',strText, 1024, mSettingPath);
-	if(strText[0] != '\0') username->setText(strText);
+	if(strText[0] != '\0') 
+		username->setText(strText);
+
 
 	CEGUI::Window *passwd = wmgr.createWindow("OgreTray/Editbox", "Password");
 	passwd->setSize(CEGUI::UVector2(CEGUI::UDim(0.4f, 0.0f), CEGUI::UDim(0.1f, 0.0f)));
@@ -524,50 +442,39 @@ void SgvMain::createInitWindow()
 	CEGUI::Window *menu = wmgr.createWindow("TaharezLook/Menubar", "MenuBar");
 	menu->setSize(CEGUI::UVector2(CEGUI::UDim(0.3f, 0.0f), CEGUI::UDim(0.04f, 0.0f)));
     menu->setPosition(CEGUI::UVector2(CEGUI::UDim(0.0f, 0.0f), CEGUI::UDim(0.0f, 0.0f)));
-    menu->setAlwaysOnTop(true);
 
 	// Menu item
 	CEGUI::Window *settings = wmgr.createWindow("TaharezLook/MenuItem", "item1");
 	settings->setText("Settings");
-    settings->setAlwaysOnTop(true);
 
 	// Menu item
 	CEGUI::Window *plugin = wmgr.createWindow("TaharezLook/MenuItem", "item2");
 	plugin->setText("Services");
-    plugin->setAlwaysOnTop(true);
 
 	CEGUI::Window *option = wmgr.createWindow("TaharezLook/MenuItem", "item3");
 	option->setText("Option");
-    option->setAlwaysOnTop(true);
 	//////////
 
 	CEGUI::PopupMenu *settings_menu = (CEGUI::PopupMenu*)wmgr.createWindow("TaharezLook/PopupMenu", "settings");
-    settings_menu->setAlwaysOnTop(true);
 
 	// Menu item
 	CEGUI::Window *subview = wmgr.createWindow("TaharezLook/MenuItem", "subview");
-    subview->setAlwaysOnTop(true);
 	subview->setText("* Sub View");
 
 	// Menu item
 	CEGUI::Window *overwrite = wmgr.createWindow("TaharezLook/MenuItem", "overwrite");
-    overwrite->setAlwaysOnTop(true);
 	if(!mOverWrite)	overwrite->setText("   Overwrite shape file");
 	else            overwrite->setText("* Overwrite shape file");
+
 
 	// Entity position
 	CEGUI::Window *entity_pos = wmgr.createWindow("TaharezLook/MenuItem", "EntityPosition");
 	entity_pos->setText("  Entity Position");
-    entity_pos->setAlwaysOnTop(true);
 
 	// EntityPosition menu
 	CEGUI::Window *epm = wmgr.createWindow("TaharezLook/PopupMenu", "EntityPositionMenu");
-    epm->setAlwaysOnTop(true);
 	CEGUI::Window *mov = wmgr.createWindow("TaharezLook/MenuItem", "MeanOfVertex");
-    mov->setAlwaysOnTop(true);
 	CEGUI::Window *cov = wmgr.createWindow("TaharezLook/MenuItem", "CenterOfVertex");
-    cov->setAlwaysOnTop(true);
-
 	if(mAlgEntityPos == 1){
 		mov->setText("* Average vertices (old)");
 		cov->setText("  Center of vertices (default)");
@@ -587,22 +494,19 @@ void SgvMain::createInitWindow()
 	//swo->setText("  Start with OGRE setting");
 
 	CEGUI::Window *plugin_menu = wmgr.createWindow("TaharezLook/PopupMenu", "plugin_menu");
-    plugin_menu->setAlwaysOnTop(true);
 	CEGUI::Window *startplugin_menu = wmgr.createWindow("TaharezLook/PopupMenu", "startplugin_menu");
-    startplugin_menu->setAlwaysOnTop(true);
 
 	CEGUI::Window *option_menu = wmgr.createWindow("TaharezLook/PopupMenu", "option");
-    option_menu->setAlwaysOnTop(true);
+
 
 	// Menu item mejirusi 
 	CEGUI::MenuItem *dmode = (CEGUI::MenuItem*)wmgr.createWindow("TaharezLook/MenuItem", "dynamicsview");
 	dmode->setText("   Dynamics view");
 	dmode->setEnabled(false);
-    dmode->setAlwaysOnTop(true);
 
 	if(!mPSrvs.empty()) mPSrvs.clear();
 	int count = 0;
-	while (1) {
+	while(1) {
 		TCHAR pathText[256];
 
 		char tmp[2];
@@ -620,54 +524,46 @@ void SgvMain::createInitWindow()
 
 		char * filename = getFileName((char*)pathText);
 		CEGUI::Window *tmp1 = wmgr.createWindow("TaharezLook/MenuItem", filename);
-        tmp1->setAlwaysOnTop(true);
-  		tmp1->setText(filename);
+		tmp1->setText(filename);
 		startplugin_menu->addChildWindow(tmp1);
 		//if(count == 0)
 
-	    if(count == 0)
-		    tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, 
-                                 CEGUI::Event::Subscriber(&SgvMain::startService1, this));
-	    else if(count == 1)
-		    tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, 
-                                 CEGUI::Event::Subscriber(&SgvMain::startService2, this));
-	    else if(count == 2)
-		    tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, 
-                                 CEGUI::Event::Subscriber(&SgvMain::startService3, this));
-	    else if(count == 3)
-		    tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, 
-                                 CEGUI::Event::Subscriber(&SgvMain::startService4, this));
-	    else if(count == 4)
-		    tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, 
-                                 CEGUI::Event::Subscriber(&SgvMain::startService5, this));
-	    else if(count == 5)
-		    tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, 
-                                 CEGUI::Event::Subscriber(&SgvMain::startService6, this));
+	if(count == 0)
+		tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, CEGUI::Event::Subscriber(&SgvMain::startService1, this));
+	else if(count == 1)
+		tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, CEGUI::Event::Subscriber(&SgvMain::startService2, this));
+	else if(count == 2)
+		tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, CEGUI::Event::Subscriber(&SgvMain::startService3, this));
+	else if(count == 3)
+		tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, CEGUI::Event::Subscriber(&SgvMain::startService4, this));
+	else if(count == 4)
+		tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, CEGUI::Event::Subscriber(&SgvMain::startService5, this));
+	else if(count == 5)
+		tmp1->subscribeEvent(CEGUI::PushButton::EventClicked, CEGUI::Event::Subscriber(&SgvMain::startService6, this));
 
 		count++;
 	}
 
-#ifdef _OLD_VERSION
+	/*
 	// Menu item
 	CEGUI::Window *add_plugin = wmgr.createWindow("TaharezLook/MenuItem", "add_plugin");
 	add_plugin->setText("Add");
-#endif
+	*/
 	// remove plug-in
 	CEGUI::Window *add_plugin = wmgr.createWindow("TaharezLook/MenuItem", "add_plugin");
 	add_plugin->setText("  Add");
-    add_plugin->setAlwaysOnTop(true);
 
 	// start plug-in
 	CEGUI::Window *start_plugin = wmgr.createWindow("TaharezLook/MenuItem", "start_plugin");
 	start_plugin->disable();
 	start_plugin->setText("  Start");
-    start_plugin->setAlwaysOnTop(true);
 
 	subview->subscribeEvent(CEGUI::PushButton::EventClicked,
 		CEGUI::Event::Subscriber(&SgvMain::subView, this));
 
 	overwrite->subscribeEvent(CEGUI::PushButton::EventClicked,
 		CEGUI::Event::Subscriber(&SgvMain::overwriteShape, this));
+
 
 	ssh_checkbox->subscribeEvent(CEGUI::Checkbox::EventMouseClick,
 		CEGUI::Event::Subscriber(&SgvMain::sshCheckONOFF, this));
@@ -680,6 +576,7 @@ void SgvMain::createInitWindow()
 
 	cov->subscribeEvent(CEGUI::PushButton::EventClicked,
 		CEGUI::Event::Subscriber(&SgvMain::setCOV, this));
+
 
 	add_plugin->subscribeEvent(CEGUI::PushButton::EventClicked,
 		CEGUI::Event::Subscriber(&SgvMain::editService, this));
@@ -709,9 +606,7 @@ void SgvMain::createInitWindow()
 	settings_menu->addChildWindow(subview);
 	settings_menu->addChildWindow(overwrite);
 	settings_menu->addChildWindow(entity_pos);
-#ifdef _OLD_VERSION
-    settings_menu->addChildWindow(swo);
-#endif
+	//settings_menu->addChildWindow(swo);
 	plugin_menu->addChildWindow(add_plugin);
 	plugin_menu->addChildWindow(start_plugin);
 	option_menu->addChildWindow(dmode);
@@ -733,16 +628,16 @@ void SgvMain::createInitWindow()
 
 	std::vector<CEGUI::Window*> tmp_subwin;
 
-    mTidx = -1;
-	char tmp_name1[32], tmp_name2[32], tmp_name3[32];
+	int winNum = 4;
+	for(int i = 0; i < winNum; i++) {
 
-	for(int i = 0; i < MAX_SUBVIEW; i++) {
-		sprintf(tmp_name1, "RTT_%d",i);
+		char tmp_name[32];
+		char tmp_name2[32];
+		sprintf(tmp_name, "RTT_%d",i);
 		sprintf(tmp_name2, "cam%d",i + 1);
-        sprintf(tmp_name3, "FW_%d", i);
 
 		Ogre::TexturePtr tex = mRoot->getTextureManager()->createManual(
-			tmp_name1,
+			tmp_name,
 			Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,
 			Ogre::TEX_TYPE_2D,
 			512,
@@ -751,6 +646,7 @@ void SgvMain::createInitWindow()
 			Ogre::PF_R8G8B8,
 			Ogre::TU_RENDERTARGET);
 
+
 		Ogre::RenderTexture *rtex = tex->getBuffer()->getRenderTarget();
 		Ogre::Viewport *view  = rtex->addViewport(tmp_cam);
 
@@ -758,236 +654,62 @@ void SgvMain::createInitWindow()
 		view->setOverlaysEnabled(false);
 		view->setClearEveryFrame(true);
 		mViews.push_back(view);
+
 		CEGUI::Texture &guiTex = mRenderer->createTexture(tex);
 
 		CEGUI::Imageset &imageSet =
-			CEGUI::ImagesetManager::getSingleton().create(tmp_name1, guiTex);
+			CEGUI::ImagesetManager::getSingleton().create(tmp_name, guiTex);
 
-        if (imageSet.isImageDefined("RTTImage")) {
+		if(imageSet.isImageDefined("RTTImage")) {
 			imageSet.getImage("RTTImage");
-		} else {
+		}
+		else {
 			imageSet.defineImage("RTTImage",
 				CEGUI::Point(0.0f, 0.0f),
-				CEGUI::Size(guiTex.getSize().d_width, guiTex.getSize().d_height),
+				CEGUI::Size(guiTex.getSize().d_width,
+				guiTex.getSize().d_height),
 				CEGUI::Point(0.0f, 0.0f));
 		}
-
-		CEGUI::FrameWindow *sw = static_cast<CEGUI::FrameWindow*>(CEGUI::WindowManager::getSingleton().createWindow("OgreTray/FrameWindowSubView", tmp_name3));
-        sw->setSizingEnabled(true);
-        sw->setTitleBarEnabled(false);
-        sw->setCloseButtonEnabled(false);
-        sw->setDragMovingEnabled(true);
-        sw->setVisible(false);
-        
-		CEGUI::Window *si = CEGUI::WindowManager::getSingleton().createWindow("TaharezLook/StaticImage", tmp_name1);
-        si->setVisible(false);
-
+		CEGUI::Window *si = CEGUI::WindowManager::getSingleton().createWindow("TaharezLook/StaticImage", tmp_name);
 		CEGUI::Window *fb = wmgr.createWindow("TaharezLook/Button", tmp_name2);
 		fb->setSize(CEGUI::UVector2(CEGUI::UDim(0.15f, 0.0f), CEGUI::UDim(0.15f, 0.0f)));
 		fb->setPosition(CEGUI::UVector2(CEGUI::UDim(0.85f, 0.0f), CEGUI::UDim(0.0f, 0.0f)));
-		fb->setAlpha(0.50f);
+		fb->setAlpha(0.5f);
 		tmp_subwin.push_back(fb);
 
 		si->setProperty("Image", CEGUI::PropertyHelper::imageToString(&imageSet.getImage("RTTImage")));
-        
-		sw->setSize(CEGUI::UVector2(CEGUI::UDim(0.24f, 0), CEGUI::UDim(0.24f, 0)));
-		sw->setPosition(CEGUI::UVector2(CEGUI::UDim(0.0f, 0), CEGUI::UDim(0.04 + (0.24f * i), 0)));
+		si->setVisible(false);
 
-        float rx = (0.24f * (1.0f - R_DX)) / 2.0f;
-        float ry = (0.24f * (1.0f - R_DY)) / 2.0f;
+		si->setSize(CEGUI::UVector2(CEGUI::UDim(0.24f, 0),
+			CEGUI::UDim(0.24f, 0)));
+		si->setPosition(CEGUI::UVector2(CEGUI::UDim(0.0f, 0),
+			CEGUI::UDim(0.04 + 0.24f*i, 0)));
 
-		si->setSize(CEGUI::UVector2(CEGUI::UDim(0.24f * R_DX, 0), CEGUI::UDim(0.24f * R_DY, 0)));
-		si->setPosition(CEGUI::UVector2(CEGUI::UDim(0.0f + rx, 0), CEGUI::UDim(0.04 + (0.24f * i) + ry, 0)));
-
-        si->setAlwaysOnTop(true);
 		si->addChildWindow(fb);
-		si->setMaxSize(CEGUI::UVector2(CEGUI::UDim(1.0f, 0), CEGUI::UDim(1.0f, 0)));
 
-		mSubWindows.push_back(sw);
-        mSubViews.push_back(si);
+		mSubWindows.push_back(si);
+		si->setMaxSize(CEGUI::UVector2(CEGUI::UDim(1.0f, 0),
+			CEGUI::UDim(1.0f, 0)));
 
 		sheet->addChildWindow(si);
-        sheet->addChildWindow(sw);
 
 	}
 
-    this->mBm[0] = 0.0;
-    this->mBm[1] = 0.0;
+	tmp_subwin[0]->subscribeEvent(CEGUI::PushButton::EventClicked,  CEGUI::Event::Subscriber(&SgvMain::agentView1, this));
+	tmp_subwin[1]->subscribeEvent(CEGUI::PushButton::EventClicked,  CEGUI::Event::Subscriber(&SgvMain::agentView2, this));
+	tmp_subwin[2]->subscribeEvent(CEGUI::PushButton::EventClicked,  CEGUI::Event::Subscriber(&SgvMain::agentView3, this));
+	tmp_subwin[3]->subscribeEvent(CEGUI::PushButton::EventClicked,  CEGUI::Event::Subscriber(&SgvMain::agentView4, this));
 
-	bool (SgvMain::*cfunc[])(const CEGUI::EventArgs &e) = {&SgvMain::agentView1,
-                                                           &SgvMain::agentView2,
-                                                           &SgvMain::agentView3,
-                                                           &SgvMain::agentView4};
 
-	for (int i = 0; i < MAX_SUBVIEW; i++) {
-  	    tmp_subwin[i]->subscribeEvent(CEGUI::PushButton::EventClicked,  CEGUI::Event::Subscriber(cfunc[i], this));
+	//debug
+	m_frameNum = 0;
 
-	}
-
-	const CEGUI::String mevents[] = {CEGUI::Window::EventMouseButtonDown, 
-                                     CEGUI::Window::EventMouseMove,
-                                     CEGUI::Window::EventMouseButtonUp,
-                                     CEGUI::Window::EventMouseLeavesArea};
-
-	bool (SgvMain::*mfunc[])(const CEGUI::EventArgs &e) = {&SgvMain::cameraView_Down,
-                                                           &SgvMain::cameraView_Move,
-                                                           &SgvMain::cameraView_Up,
-                                                           &SgvMain::cameraView_Up};
-
-	for (int i = 0; i < MAX_SUBVIEW; i++) {
-		for (int j = 0; j < 4; j++) { 
-            mSubViews[i]->subscribeEvent(mevents[j], CEGUI::Event::Subscriber(mfunc[j], this));
-		}
-		mSubWindows[i]->subscribeEvent(CEGUI::FrameWindow::EventMouseButtonDown, CEGUI::Event::Subscriber(&SgvMain::cameraView_Sizing, this));
-		mSubWindows[i]->subscribeEvent(CEGUI::FrameWindow::EventSized, CEGUI::Event::Subscriber(&SgvMain::cameraView_Sized, this));
-	}
-
-   
 }
-
-int SgvMain::cameraView_Select(const CEGUI::EventArgs &e, int *result) {
-
-	for (int i = 0; i < MAX_SUBVIEW; i++) {
-
-        double tmx = mSubWindows[i]->getPixelSize().d_width;
-        double tmy = mSubWindows[i]->getPixelSize().d_height;
-
-        CEGUI::UDim hmx = mSubWindows[i]->getXPosition();
-        CEGUI::UDim hmy = mSubWindows[i]->getYPosition();
-
-        const CEGUI::MouseEventArgs a = static_cast<const CEGUI::MouseEventArgs&>(e);
-
-        if ( (hmx.d_offset <= a.position.d_x && a.position.d_x <= (hmx.d_offset + tmx)) &&
-	  	     (hmy.d_offset <= a.position.d_y && a.position.d_y <= (hmy.d_offset + tmy)) &&
-              mSubWindows[i]->isVisible() == true) { 
-
-            *result = i;
-            return 0;
-
-	    } 
-	}
-
-    *result = -1;
-    return 0;
-}
-
-bool SgvMain::cameraView_Sizing(const CEGUI::EventArgs &e) {
-    cameraView_Select(e, &mTidx);
-	if (mTidx < 0) {
-        return true;
-	}
-    return true;
-}
-
-bool SgvMain::cameraView_Sized(const CEGUI::EventArgs &e) {
-	if (mTidx < 0) return true;
-
-    double tmx = mSubWindows[mTidx]->getPixelSize().d_width;
-    double tmy = mSubWindows[mTidx]->getPixelSize().d_height;
-
-	if (tmx - 0.0f <= DBL_EPSILON && tmy - 0.0f <= DBL_EPSILON) {
-        return true;
-	}
-
-    /*
-	if (tmx < MIN_SIZE || tmy < MIN_SIZE) {
-		tmx = (tmx < MIN_SIZE ? MIN_SIZE : tmx);
-		tmy = (tmy < MIN_SIZE ? MIN_SIZE : tmy);
-        
-		mSubWindows[mTidx]->setSize(CEGUI::UVector2(CEGUI::UDim(0.0f, tmx),
-			                                        CEGUI::UDim(0.0f, tmy)));
-	}
-    */
-
-    CEGUI::UDim hmx = mSubWindows[mTidx]->getXPosition();
-    CEGUI::UDim hmy = mSubWindows[mTidx]->getYPosition();
-
-    double u_dx = (R_DD * 2.0f) / tmx;
-    double u_dy = (R_DD * 2.0f) / tmy;
-
-    mSubViews[mTidx]->setSize    (CEGUI::UVector2(
-                                  CEGUI::UDim(0.0f, tmx * (1.0f - u_dx) ),
-                                  CEGUI::UDim(0.0f, tmy * (1.0f - u_dy) )));
-
-    mSubViews[mTidx]->setPosition(CEGUI::UVector2(
-                                  CEGUI::UDim(0.0f, hmx.d_offset + ((tmx * u_dx) / 2.0f) ),
-                                  CEGUI::UDim(0.0f, hmy.d_offset + ((tmy * u_dy) / 2.0f) )));
-
-    return true;
-}
-
-bool SgvMain::cameraView_Down(const CEGUI::EventArgs &e) {
-
-    cameraView_Select(e, &mTidx);
-	if (mTidx < 0) {
-        return true;
-	}
-
-    const CEGUI::MouseEventArgs a = static_cast<const CEGUI::MouseEventArgs&>(e);
-
-    CEGUI::UDim dmx = mSubWindows[mTidx]->getXPosition();
-	CEGUI::UDim dmy = mSubWindows[mTidx]->getYPosition();
-
-    this->mMove = true;
-
-    this->mBm[0] = a.position.d_x;
-    this->mBm[1] = a.position.d_y;
  
-    return true;
-}
-
-bool SgvMain::cameraView_Move(const CEGUI::EventArgs &e) {
-	if (this->mMove == true) {
-
-        const CEGUI::MouseEventArgs a = static_cast<const CEGUI::MouseEventArgs&>(e);
-
-	    CEGUI::UDim dmx = mSubWindows[mTidx]->getXPosition();
-	    CEGUI::UDim dmy = mSubWindows[mTidx]->getYPosition();
-
-        double rmx = mSubWindows[mTidx]->getPixelSize().d_width;
-        double rmy = mSubWindows[mTidx]->getPixelSize().d_height;
-
-        double tmx = (a.position.d_x - this->mBm[0] + dmx.d_offset); // / mmx.d_offset;
-        double tmy = (a.position.d_y - this->mBm[1] + dmy.d_offset); // / mmy.d_offset;
-
-        mSubWindows[mTidx]->setXPosition(CEGUI::UDim(0.0f, tmx));
-	    mSubWindows[mTidx]->setYPosition(CEGUI::UDim(0.0f, tmy));
-
-        double u_dx = (R_DD * 2.0f) / rmx;
-        double u_dy = (R_DD * 2.0f) / rmy;
-
-        mSubViews[mTidx]->setSize    (CEGUI::UVector2(
-                                      CEGUI::UDim(0.0f, rmx * (1.0f - u_dx) ),
-                                      CEGUI::UDim(0.0f, rmy * (1.0f - u_dy) )));
-
-        mSubViews[mTidx]->setPosition(CEGUI::UVector2(
-                                      CEGUI::UDim(0.0f, tmx + ((rmx * u_dx) / 2.0f) ),
-                                      CEGUI::UDim(0.0f, tmy + ((rmy * u_dy) / 2.0f) )));
-
-        this->mBm[0] = a.position.d_x;
-        this->mBm[1] = a.position.d_y;
-
-	}
-
-    return true;
-
-}
-
-bool SgvMain::cameraView_Up(const CEGUI::EventArgs &e) {
-    this->mMove = false;
-
-    const CEGUI::MouseEventArgs a = static_cast<const CEGUI::MouseEventArgs&>(e);
-
-    this->mBm[0] = a.position.d_x;
-    this->mBm[1] = a.position.d_y;
-
-    return true;
-}
-
 void SgvMain::chooseSceneManager(void)
 {
 	//create a scene manager that is meant for handling outdoor scenes
-	mSceneMgr = mRoot->createSceneManager(Ogre::ST_EXTERIOR_CLOSE);    
+	mSceneMgr = mRoot->createSceneManager(Ogre::ST_EXTERIOR_CLOSE);
 }
 
 void SgvMain::createFrameListener(void)
@@ -996,8 +718,8 @@ void SgvMain::createFrameListener(void)
 	mCurrentObject = NULL;
 	mLMouseDown = false;
 	mRMouseDown = false;
-	mShift      = false;
-	mCtrl       = false;
+	mShift     = false;
+	mCtrl      = false;
 
 	mRotateSpeed =.1f;
 
@@ -1043,32 +765,37 @@ void SgvMain::createFrameListener(void)
  
 bool SgvMain::frameRenderingQueued(const Ogre::FrameEvent& evt)
 {
+
 	//static bool sended;
 
-	if (mWindow->isClosed()){
+	if(mWindow->isClosed()){
+		//mHeadNode->
         return false;
 	}
-	if (mShutDown) {
+    if(mShutDown)
         return false;
-	}
 
     //Need to capture/update each device
     mKeyboard->capture();
 	mMouse->capture();
 
 	if(mSended && mConnectServer) {
+
+
 		if(!recvMoveEntities()) {
 			//MessageBox(NULL, _T("failed to recv entities"), _T("Attention"), MB_OKCANCEL); 
-		} else {
-			mSended = false;
 		}
+		else
+			mSended = false;
+
 	}
 
+
 	if(mService != NULL) {
-#ifdef _OLD_VERSION
-		boost::unique_lock<boost::mutex> lock(mMutex);
-#endif
+
+		//boost::unique_lock<boost::mutex> lock(mMutex);
 		if(mService->isMsg()) {
+
 			sigverse::RecvMsgEvent *mevt = mService->getRecvMsgEvent();
 			CEGUI::String msg = mevt->getMsg();
 			CEGUI::String sender = mevt->getSender();
@@ -1081,7 +808,8 @@ bool SgvMain::frameRenderingQueued(const Ogre::FrameEvent& evt)
 			it = mAllEntities.find(sender.c_str());
 			if(it != mAllEntities.end()) {
 				i_sender->setTextColours(CEGUI::ColourRect(CEGUI::colour(0.0f, 0.0f, 0.5f)));
-			} else {
+			}
+			else {
 				i_sender->setTextColours(CEGUI::ColourRect(CEGUI::colour(0.5f, 0.0f, 0.0f)));
 			}
 
@@ -1094,13 +822,16 @@ bool SgvMain::frameRenderingQueued(const Ogre::FrameEvent& evt)
 			mlist->ensureItemIsVisible(i_msg);
 
 			CEGUI::Window *rtray = mTelop->getParent();
-			if (!rtray->isVisible()) {
+			if(!rtray->isVisible()) {
 				rtray->setVisible(true);
 			}
 		}
 	}
 
+
 	if(mConnectServer) { 
+		//if(requestMoveEntities())
+
 		if(mEntityData != NULL){
 
 			Ogre::Vector3 pos = mEntityData->getHeadNode()->getPosition();
@@ -1110,6 +841,9 @@ bool SgvMain::frameRenderingQueued(const Ogre::FrameEvent& evt)
 
 			CEGUI::WindowManager &wmgr = CEGUI::WindowManager::getSingleton();
 			CEGUI::Listbox *eDataList = static_cast<CEGUI::Listbox *>(wmgr.getWindow("EntityDataList"));
+			//eDataList->
+
+			//const CEGUI::Window win = mEntityDataList[1]->g
 		}
 
 
@@ -1122,26 +856,40 @@ bool SgvMain::frameRenderingQueued(const Ogre::FrameEvent& evt)
 			//memcpy(msg, (char*)&tmp, 2); 
 			SOCKET sock = mSock->getSocket();
 			int ret = send(sock, msg, 4, 0);
-			if (ret < 0) {
+			if(ret < 0) {
 				MessageBox(NULL, _T("failed to send request to get entities."), _T("Attention"), MB_OKCANCEL); 
-			} else {
-				mSended = true;
 			}
+			else
+				mSended = true;
 		}
 
+		/*
+		if(sendRequest(GET_MOVE_ENTITIES)){
+			//MessageBox(NULL, _T("Send Request!!"), _T("Attention"), MB_OKCANCEL); 
+
+		}
+		else {
+			mSended = false;
+			disconnect(CEGUI::EventArgs());
+		}
+		*/
 		int requestType = mService->getRequestType();
 
 		if(requestType != NULL) {
-			switch(requestType) {
-			case 1: {
+			switch(requestType)
+			{
+			case 1: 
+				{
 					captureView();
 					break;
 				}
-			case 2: {
+			case 2: 
+				{
 					distanceSensor();
 					break;
 				}
-			case 3: {
+			case 3: 
+				{
 					detectEntities();
 					break;
 				}
@@ -1151,8 +899,8 @@ bool SgvMain::frameRenderingQueued(const Ogre::FrameEvent& evt)
 			checkRequestFromService();
 
 		Sleep(8);
-
-	} else {
+	} // if(mConnectedServer)
+	else {
 		Sleep(8);
 	}
 
@@ -1236,7 +984,7 @@ bool SgvMain::mouseMoved( const OIS::MouseEvent &arg )
 	// If we are dragging the left mouse button.
 	if (mLMouseDown)
 	{
-        printf("");
+
 	} // if
  
 	else if (mRMouseDown)
@@ -1338,6 +1086,7 @@ bool SgvMain::mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 									mEntityData->resetTransparency();
 
 									mEntityData->setPositionMarkVisible(false);
+
 
 									if(mEntityData->isRobot()){
 										mEntityData->setJointPositionVisible(false);
@@ -1511,26 +1260,23 @@ bool SgvMain::mousePressed( const OIS::MouseEvent &arg, OIS::MouseButtonID id )
 
 						int camNum = (*it).second->getCameraNum();
 
+						//bool cameraFind = false;
 						if(camNum > 0 && mSubView)  {
 							for(int i = 0; i < 4; i++) {
+
+								//else {
 								std::string cam_name = (*it).second->getCameraName(i+1);
 
 								if(cam_name.length() > 0) {
 									Ogre::Camera *ocam = mSceneMgr->getCamera(cam_name);
+									//ocam->set
 									mViews[i]->setCamera(ocam);
 
-   									mSubWindows[i]->setVisible(true);
-                                    //mSubWindows[i]->setAlwaysOnTop(true);
-                                    mSubViews  [i]->setVisible(true);
-                                    mSubViews  [i]->setAlwaysOnTop(true);
-                                    this->mTidx = i;
-
-								} else{
+									mSubWindows[i]->setVisible(true);
+								}
+								else{
 									if( mSubWindows[i]->isVisible()) {
 										mSubWindows[i]->setVisible(false);
-									}
-									if( mSubViews  [i]->isVisible()) {
-										mSubViews  [i]->setVisible(false);
 									}
 								}
 							}
@@ -1659,6 +1405,8 @@ bool SgvMain::connect(const CEGUI::EventArgs &e)
 	CEGUI::String portString  = port->getText();
 	CEGUI::Window *main = wmgr.getWindow("MainSheet");
 
+
+
 	int portnum = atoi(portString.c_str());
 
 	if(portnum < 1000){
@@ -1698,7 +1446,7 @@ bool SgvMain::connect(const CEGUI::EventArgs &e)
 	mSock = new sigverse::SgvSocket();
 	mSock->initWinsock();
 
-	if(mSock->connectTo(ipString.c_str(), portnum))
+	if(mSock->connectToSimserver(ipString.c_str(), portnum))
 	{
 
 		std::string tmpString = "SIGViewer," + std::string(snameString.c_str());
@@ -1921,9 +1669,13 @@ bool SgvMain::createAllEntities()
 	}
 
 	char *sesize = strtok_s(NULL, delim, &ctx);
+
+
+
 	int esize = atoi(sesize);
 
 	for(int i = 0; i < esize; i++) {
+
 		char *id_str = strtok_s(NULL, delim, &ctx);
 
 		char *scalex = strtok_s(NULL, delim, &ctx);
@@ -1991,6 +1743,7 @@ bool SgvMain::createAllEntities()
 		Ogre::Vector3 pos(x, y, z);
 		Ogre::Quaternion rot(qw, qx, qy, qz);
 
+
 		Sgv::SgvEntity* entity = new Sgv::SgvEntity(mHeadNode, name, pos, rot,scale, id);
 
 		int fsize = shapes.size();
@@ -2020,6 +1773,7 @@ bool SgvMain::createAllEntities()
 		}
 
 		int partsNum = atoi(strtok_s(NULL, delim, &ctx));
+
 
 		double comx = 0.0;
 		double comy = 0.0;
@@ -2080,8 +1834,6 @@ bool SgvMain::createAllEntities()
 				Ogre::Entity *oent = mSceneMgr->createEntity(tmp_name, "pSphere1.mesh");
 				Ogre::MaterialPtr mtr = Ogre::MaterialManager::getSingleton().getByName("MA_Red_Clone");
 
-                oent->setCastShadows(true);
-
 				if(mtr.isNull()){
 					Ogre::MaterialPtr tmp = Ogre::MaterialManager::getSingleton().getByName("MA_Red");
 					mtr = tmp->clone("MA_Red_Clone");
@@ -2109,8 +1861,6 @@ bool SgvMain::createAllEntities()
 				Ogre::Entity *oent = mSceneMgr->createEntity(tmp_name, "MyBox.mesh");
 				Ogre::MaterialPtr mtr = Ogre::MaterialManager::getSingleton().getByName("MA_Green_Clone");
 
-                oent->setCastShadows(true);
-
 				if(mtr.isNull()){
 					Ogre::MaterialPtr tmp = Ogre::MaterialManager::getSingleton().getByName("MA_Green");
 					mtr = tmp->clone("MA_Green_Clone");
@@ -2136,8 +1886,6 @@ bool SgvMain::createAllEntities()
 				sprintf_s(tmp_name, 32, "%s/ODEShape%d",name.c_str(), i);
 				//Ogre::Entity *oent = mSceneMgr->createEntity(tmp_name, "MyCylinder.mesh");
 				Ogre::Entity *oent = mSceneMgr->createEntity(tmp_name, "pCylinder1.mesh");
-
-                oent->setCastShadows(true);
 
 				float mean = (scx + scz)/2; 
 				parent->scale(Ogre::Vector3(radius ,length/2, radius));
@@ -2267,8 +2015,6 @@ bool SgvMain::createAllEntities()
 					Ogre::Entity *cam_ent = mSceneMgr->createEntity(cam_name, "MySphere.mesh");
 					Ogre::MaterialPtr mtr = Ogre::MaterialManager::getSingleton().getByName("Orange_Clone");
 
-                    cam_ent->setCastShadows(true);
-
 					if(mtr.isNull()){
 						Ogre::MaterialPtr tmp = Ogre::MaterialManager::getSingleton().getByName("BaseWhiteNoLighting");
 						mtr = tmp->clone("Orange_Clone");
@@ -2364,12 +2110,6 @@ bool SgvMain::startRequest(const CEGUI::EventArgs &e)
 			//boost::thread requestThread(boost::bind(&SgvMain::requestLoop, this));
 
 			start->setText("STOP");
-
-           //GetPrivateProfileString("SUNLIGHT", "TimeSpeed", '\0', pathText, 1024, mSettingPath);
-	       //if (0 < strlen(pathText)) {
-           //    boost::thread(boost::bind(&SgvMain::startSunlight, this));
-	       //}
-
 		}
 	}
 	else{
@@ -2431,8 +2171,8 @@ bool SgvMain::subView(const CEGUI::EventArgs &e)
 	if(mSubView) {
 		for(int i = 0; i < 4; i++) {
 			mSubWindows[i]->setVisible(false);
-            mSubViews  [i]->setVisible(false);
 		}
+
 		swin->setText("  Sub View");
 
 		mSubView = false;
@@ -2444,8 +2184,6 @@ bool SgvMain::subView(const CEGUI::EventArgs &e)
 				Ogre::Vector3 mpos = mCamera->getPosition(); 
 				if(pos == mpos)	 {
 					mSubWindows[i]->setVisible(true);
-                    mSubViews  [i]->setVisible(true);
-                    mSubViews  [i]->setAlwaysOnTop(true);
 				}
 			}
 			else
@@ -2774,6 +2512,7 @@ bool SgvMain::recvMoveEntities()
 	n = select(0, &fds, NULL, NULL, &tv);
 
 	if (n == 0) {
+		//printf("timeout\n");
 		return false;
 	}
 
@@ -2843,6 +2582,7 @@ bool SgvMain::recvMoveEntities()
 
 	CEGUI::String stime = strtok_s(NULL, delim, &ctx);
 
+
 	CEGUI::WindowManager &wmgr = CEGUI::WindowManager::getSingleton();
 	CEGUI::Window *time = wmgr.getWindow("Time");
 	CEGUI::Window *timeu = wmgr.getWindow("timeu");
@@ -2863,6 +2603,7 @@ bool SgvMain::recvMoveEntities()
 		sprintf(tmp, "%.2f",ftime);
 		time->setText(tmp);
 	} 
+
 
 	for(int i = 0; i < esize; i++) {
 
@@ -2895,13 +2636,27 @@ bool SgvMain::recvMoveEntities()
 			float fqx = atof(qx);
 			float fqy = atof(qy);
 			float fqz = atof(qz);
+
 			child->setOrientation(Ogre::Quaternion(fqw, fqx, fqy, fqz));
+
+			/*
+			char msg[128];
+			sprintf_s(msg, 128, "Qua(%f, %f, %f, %f)", fqw, fqx, fqy, fqz);
+			if(fqw != 1.0)
+				MessageBox( NULL, msg, _T("Error"), MB_OK);
+				*/
 		}
+
 
 		char *jinirot = strtok_s(NULL, delim, &ctx);
 		int inirotNum = atoi(jinirot);
 
+		//char jnum[32];
+		//sprintf(jnum, "jnum = %d", rotNum);
+		//MessageBox( NULL, jnum, "Error", MB_OK);
+
 		for(int i = 0; i < inirotNum; i++) {
+
 			Ogre::String jname = strtok_s(NULL, delim, &ctx);
 
 			char *qw =strtok_s(NULL, delim, &ctx);
@@ -2914,14 +2669,26 @@ bool SgvMain::recvMoveEntities()
 			float fqz = atof(qz);
 
 			Ogre::SceneNode *node = mSceneMgr->getSceneNode(name + "/" + jname);
+			//node->setOrientation(Ogre::Quaternion(fqw, fqx, fqy, fqz));
 			node->setOrientation(Ogre::Quaternion(fqw, fqx, fqy, fqz));
 			node->setInitialState();
+			//Ogre::Quaternion::
+			//node->
 		}
+
+
 
 		char *jrot = strtok_s(NULL, delim, &ctx);
 		int rotNum = atoi(jrot);
 
+		/*
+		char jnum[32];
+		sprintf(jnum, "jnum = %d", rotNum);
+		MessageBox( NULL, jnum, "Error", MB_OK);
+		*/
+
 		for(int i = 0; i < rotNum; i++) {
+
 			Ogre::String jname = strtok_s(NULL, delim, &ctx);
 
 			char *qw =strtok_s(NULL, delim, &ctx);
@@ -2956,6 +2723,10 @@ bool SgvMain::recvMoveEntities()
 			char *tmp_pos =strtok_s(NULL, delim, &ctx);
 			int chpos = atoi(tmp_pos);
 
+			//char pnum[32];
+			//sprintf(pnum, "chpos = %d", chpos);
+			//MessageBox( NULL, pnum, "Error", MB_OK);
+
 			if(chpos) {
 				char *x =strtok_s(NULL, delim, &ctx);
 				char *y =strtok_s(NULL, delim, &ctx);
@@ -2963,6 +2734,7 @@ bool SgvMain::recvMoveEntities()
 				float fx = atof(x);
 				float fy = atof(y);
 				float fz = atof(z);
+				//parent->setPosition(fx, fy, fz);
 				Ogre::Vector3 pos(fx, fy, fz);
 
 				Ogre::Vector3 scale = entity->getScale();
@@ -2988,6 +2760,12 @@ bool SgvMain::recvMoveEntities()
 				Ogre::Quaternion rot = zdir.getRotationTo(dir); 
 				parent->setOrientation(rot);
 
+				//parent->setDirection(fx, fy, fz, Ogre::Node::TS_PARENT);
+				/*
+				char ass[128];
+				sprintf(ass, "dir = (%f, %f, %f)", dir.x, dir.y, dir.z);
+				MessageBox( NULL, ass, "Error", MB_OK);
+				*/
 			}
 
 			char *tmp_fov =strtok_s(NULL, delim, &ctx);
@@ -3014,8 +2792,9 @@ bool SgvMain::recvMoveEntities()
 			if(chlink) {
 				Ogre::String link =strtok_s(NULL, delim, &ctx);
 			}
+			// 
 
-		}
+		} //for(int i = 0; i < camNum; i++){
 
 		int chShape = atoi(strtok_s(NULL, delim, &ctx));
 		if(chShape) {
@@ -3084,6 +2863,7 @@ bool SgvMain::downloadFileRequest(std::string name)
 {
 	char msg[128];
 	char *p = msg;
+
 
 	unsigned short ssize = name.size();
 
@@ -3192,7 +2972,6 @@ bool SgvMain::disconnect(const CEGUI::EventArgs &e)
 	}
 
 	mSubWindows.clear();
-	mSubViews.clear();
 
 	mSceneMgr->destroyAllEntities();
 	//mSceneMgr->destroyAllManualObjects();
@@ -3259,6 +3038,7 @@ bool SgvMain::closeSendMessageTray(const CEGUI::EventArgs &e)
 
 void SgvMain::acceptFromService()
 {
+	
 	//WSADATA wsaData;
 	SOCKET sock0;
 	struct sockaddr_in addr;
@@ -3357,17 +3137,25 @@ bool SgvMain::captureView()
 		return false;
 	}
 
-	int size = 320 * 240 * 3 + 4;
+	int size = IMAGE_WIDTH * IMAGE_HEIGHT * 3 + 4;
 	unsigned char *bitImage = new unsigned char[size];
 
 	Ogre::Camera *cam = mSceneMgr->getCamera(cam_name);
-
+	
 	getImage(cam, bitImage);
+
+	// debug
+	int imgSize = sizeof(cam) / sizeof(Ogre::Camera);
+	char tmp[32];
+	sprintf(tmp, "size = %d",imgSize);
+	MessageBox( NULL, tmp, "Error", MB_OK);
+
 
 	unsigned char *p = bitImage;
 	BINARY_SET_DATA_S_INCR(p, unsigned short, 0x0003);
 
 	BINARY_SET_DATA_S_INCR(p, unsigned short, 1);
+
 
 	sigverse::SgvSocket *sock = mService->getControllerSocket(ename);
 	if(sock == NULL) {
@@ -3415,6 +3203,7 @@ bool SgvMain::distanceSensor()
 
 	Ogre::Camera *cam = mSceneMgr->getCamera(cam_name);
 
+
 	Ogre::Real offset = evt.getMin();
 	Ogre::Real range = evt.getMax();
 
@@ -3427,11 +3216,11 @@ bool SgvMain::distanceSensor()
 	}
 
 	if(type == 1){
-		sendSize = 320 + 4;
+		sendSize = IMAGE_WIDTH + 4;
 	}
 
 	if(type == 2){
-		sendSize = 320 * 240 + 4;
+		sendSize = IMAGE_WIDTH * IMAGE_HEIGHT + 4;
 	}
 
 	// for send 
@@ -3459,6 +3248,12 @@ bool SgvMain::distanceSensor()
 	}
 
 	delete [] sendImage;
+
+	// debug
+	char tmp[256];
+	sprintf(tmp, "distanceSensor sendSize: %d", sendSize);
+	MessageBox( NULL, tmp, _T("Error"), MB_OK);
+
 	return true;
 }
 
@@ -3496,6 +3291,7 @@ bool SgvMain::detectEntities()
 
 	Ogre::Real ar = cam->getAspectRatio();
 	Ogre::Radian fov = cam->getFOVy();
+
 
 	Ogre::Vector3 lpos = cam->getParentNode()->convertLocalToWorldPosition(pos);
 
@@ -3550,6 +3346,7 @@ bool SgvMain::detectEntities()
 	Ogre::PlaneBoundedVolumeList volList;
 	volList.clear();
 	volList.push_back(vol);
+
 
 	// set volumes to query
 	m_VolQuery->setVolumes(volList);
@@ -3636,6 +3433,7 @@ bool SgvMain::detectEntities()
 			}
 		}
 	}
+
 
 	int entSize = names.size();
 
@@ -3860,6 +3658,7 @@ void SgvMain::sshPortForwarding(unsigned int localport, unsigned int remoteport,
 	sin.sin_port = htons(localport);
 	//sin1.sin_port = htons(localport+1);
 
+
 	if (INADDR_NONE == (sin.sin_addr.s_addr = inet_addr(listenhost))) {
 		struct hostent *host;
 		host = gethostbyname(listenhost);
@@ -3898,6 +3697,10 @@ void SgvMain::sshPortForwarding(unsigned int localport, unsigned int remoteport,
 
 		if(m_session == NULL) return;
 
+		//if(!mConnectServer)
+		//{
+		//
+
 		if(libssh2_session_get_blocking(m_session) != 1){
 			libssh2_session_set_blocking(m_session, 1);
 		}
@@ -3923,6 +3726,7 @@ shutdown:
 
 void SgvMain::transportData(int id)
 {
+
 	int rc, i;
 	fd_set fds;
 	struct timeval tv;
@@ -3931,8 +3735,9 @@ void SgvMain::transportData(int id)
 	ssize_t len, wr;
 	bool vtrans = false;
 	int wtime = 10;
-	char rbuf[16384];
-	char wbuf[16384];
+	char rbuf[TRANSPORT_DATA_SIZE];
+	char wbuf[TRANSPORT_DATA_SIZE];
+
 
 	// Must use non-blocking IO hereafter due to the current libssh2 API
 
@@ -4130,6 +3935,7 @@ bool SgvMain::addService(const CEGUI::EventArgs &e)
 	slist->addItem(item1);
 
 	mPSrvs.push_back(filename_full);
+
 	int ssize = mPSrvs.size();
 
 	std::string val = "";
@@ -4484,6 +4290,7 @@ bool SgvMain::setCOV(const CEGUI::EventArgs &e)
 
 bool SgvMain::checkRequestFromService()
 {
+
 	fd_set readfds;
 
 	int n;
@@ -4581,11 +4388,12 @@ bool SgvMain::checkRequestFromService()
 
 					int dataSize;
 					if(result == 1){
-						dataSize = 320 * 240 * 3 + headerSize;
+						dataSize = IMAGE_WIDTH * IMAGE_HEIGHT * 3 + headerSize;
 					}
 					else{
 						dataSize = headerSize;
 					}
+
 					unsigned char *bitImage = new unsigned char[dataSize];
 
 					if(result == 1){
@@ -4603,15 +4411,18 @@ bool SgvMain::checkRequestFromService()
 						ar  = cam->getAspectRatio();
 					}
 
-					/*
-					char tmp[64];
-					sprintf(tmp, "sizeof(double) = %d",sizeof(double));
-					MessageBox( NULL, tmp, "Error", MB_OK);
-					*/
+
+					// debug
+					m_frameNum++;
+					char tmp[128];
+					sprintf(tmp, "color_%03d.txt", m_frameNum);
+					m_util.TransferArr2Txt(bitImage, dataSize - headerSize, tmp);
+					
 
 					BINARY_SET_DATA_S_INCR(tmpPtr, unsigned short, result);
 					BINARY_SET_DOUBLE_INCR(tmpPtr, fov);
 					BINARY_SET_DOUBLE_INCR(tmpPtr, ar);
+
 
 					if(!(*it).second->sendData((char*)bitImage, dataSize)){
 						//MessageBox( NULL, _T("captureView: failed to send image"), _T("Error"), MB_OK);
@@ -4719,8 +4530,8 @@ bool SgvMain::checkRequestFromService()
 					else{
 						int headerSize = sizeof(unsigned short) + sizeof(double)*2;
 
-						if(dimension == 1){sendSize = 320 + headerSize;}
-						else if(dimension == 2){sendSize = 320 * 240 + headerSize;}
+						if(dimension == 1){sendSize = IMAGE_WIDTH + headerSize;}
+						else if(dimension == 2){sendSize = IMAGE_WIDTH * IMAGE_HEIGHT + headerSize;}
 					}
 
 					unsigned char *sendImage = new unsigned char[sendSize];
@@ -4791,7 +4602,7 @@ bool SgvMain::checkRequestFromService()
 					}
 					else{
 						int headerSize = sizeof(unsigned short) + sizeof(double)*2;
-						sendSize = 320 * 240 + headerSize;
+						sendSize = IMAGE_WIDTH * IMAGE_HEIGHT + headerSize;
 					}
 
 					unsigned char *sendImage = new unsigned char[sendSize];
@@ -4855,8 +4666,11 @@ bool SgvMain::getImage(Ogre::Camera *cam, unsigned char *image, int headSize,  C
 	Ogre::HardwarePixelBufferSharedPtr buf = mTex->getBuffer();
 
 	buf->blitToMemory(
-		Box(0, 0, 0, 320, 240, 1),
-		PixelBox(320, 240, 1, Ogre::PF_R8G8B8, image + headSize));
+		Box(0, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT, 1),
+		PixelBox(IMAGE_WIDTH, IMAGE_HEIGHT, 1, Ogre::PF_R8G8B8, image + headSize));
+
+	//debug
+	//MessageBox( NULL, "getImage", _T("Error"), MB_OK);
 
 	return true;
 }
@@ -4881,7 +4695,7 @@ bool SgvMain::getDistance(Ogre::Camera *cam, unsigned char *distance, double off
 
 	// blit
 	buf->blitToMemory(
-		Box(160, 120, 0, 161, 121, 1),
+		Box(IMAGE_WIDTH / 2, IMAGE_HEIGHT / 2, 0, IMAGE_WIDTH / 2 + 1, IMAGE_HEIGHT / 2, 1),
 		PixelBox(1, 1, 1, Ogre::PF_R8G8B8, tmpImage));
 
 	*distance = tmpImage[0];
@@ -4912,25 +4726,25 @@ bool SgvMain::getDistanceImage(Ogre::Camera *cam, unsigned char *distance, doubl
 
 	if(dimension == 1){
 		// for blit 
-		unsigned char *tmpImage = new unsigned char[320*3];
+		unsigned char *tmpImage = new unsigned char[IMAGE_WIDTH*3];
 
 		mDstTex->getBuffer()->getRenderTarget()->update();
 		Ogre::HardwarePixelBufferSharedPtr buf = mDstTex->getBuffer();
 
 		// blit
 		buf->blitToMemory(
-			Box(0, 120, 0, 320, 121, 1),
-			PixelBox(320, 1, 1, Ogre::PF_R8G8B8, tmpImage));
+			Box(0, IMAGE_HEIGHT / 2, 0, IMAGE_WIDTH, IMAGE_HEIGHT / 2, 1),
+			PixelBox(IMAGE_WIDTH, 1, 1, Ogre::PF_R8G8B8, tmpImage));
 
-		Ogre::Radian deltax = fovx / 319;
+		Ogre::Radian deltax = fovx / (IMAGE_WIDTH -1);
 
-		for(int i = 0; i < 320; i++) {
+		for(int i = 0; i < IMAGE_WIDTH; i++) {
 
 			double theta = i * deltax.valueRadians() - (fovx.valueRadians()/2.0);
 
-			int pos = (int)((tan(M_PI/2.0 - fovx.valueRadians()/2.0)/tan(M_PI/2.0 - theta) + 1.0)*160.0);
+			int pos = (int)((tan(M_PI/2.0 - fovx.valueRadians()/2.0)/tan(M_PI/2.0 - theta) + 1.0)*IMAGE_WIDTH / 2.0);
 
-			if(pos == 320) pos--;
+			if(pos == IMAGE_WIDTH) pos--;
 
 			unsigned char data = tmpImage[pos*3];
 
@@ -4942,7 +4756,7 @@ bool SgvMain::getDistanceImage(Ogre::Camera *cam, unsigned char *distance, doubl
 				distance[i] = 255;
 			else
 				distance[i] = tmp2;
-		} // for(int i = 0; i < 320; i++){
+		} // for(int i = 0; i < IMAGE_WIDTH; i++){
 		delete [] tmpImage;
 	} // if(dimension == 1)
 	else if(dimension == 2){
@@ -4957,30 +4771,30 @@ bool SgvMain::getDistanceImage(Ogre::Camera *cam, unsigned char *distance, doubl
 		mDistanceCamera->setAspectRatio(tan(fovx.valueRadians()*0.5)/tan(fovy_.valueRadians()*0.5));
 
 		// for blit 
-		unsigned char *tmpImage = new unsigned char[320*240*3];
+		unsigned char *tmpImage = new unsigned char[IMAGE_WIDTH*IMAGE_HEIGHT*3];
 
 		mDstTex->getBuffer()->getRenderTarget()->update();
 		Ogre::HardwarePixelBufferSharedPtr buf = mDstTex->getBuffer();
 
 		// blit
 		buf->blitToMemory(
-			Box(0, 0, 0, 320, 240, 1),
-			PixelBox(320, 240, 1, Ogre::PF_R8G8B8, tmpImage));
+			Box(0, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT, 1),
+			PixelBox(IMAGE_WIDTH, IMAGE_HEIGHT, 1, Ogre::PF_R8G8B8, tmpImage));
 
-		Ogre::Radian deltax = fovx / 319;
-		Ogre::Radian deltay = fovy / 239;
+		Ogre::Radian deltax = fovx / (IMAGE_WIDTH -1);
+		Ogre::Radian deltay = fovy / (IMAGE_HEIGHT -1);
 
 		double height = tan(fovy_.valueRadians()/2)*2;
 
-		for(int i = 0; i < 320; i++) {
+		for(int i = 0; i < IMAGE_WIDTH; i++) {
 
 			double phi = i * deltax.valueRadians() - (fovx.valueRadians()/2.0);
 
-			double posx_tmp = tan(M_PI/2.0 - fovx.valueRadians()/2.0)/tan(M_PI/2.0 - phi)*160.0;
+			double posx_tmp = tan(M_PI/2.0 - fovx.valueRadians()/2.0)/tan(M_PI/2.0 - phi)*IMAGE_WIDTH / 2.0;
 
-			int posx = (int)(posx_tmp + 0.5 + 160.0);
+			int posx = (int)(posx_tmp + 0.5 + IMAGE_WIDTH / 2.0);
 
-			if(posx == 320) posx--;
+			if(posx == IMAGE_WIDTH) posx--;
 
 			double disx = tan(phi);
 
@@ -4992,7 +4806,7 @@ bool SgvMain::getDistanceImage(Ogre::Camera *cam, unsigned char *distance, doubl
 			MessageBox( NULL, tmp, "Error", MB_OK);
 			*/
 
-			for(int j = 0; j < 240; j++){
+			for(int j = 0; j < IMAGE_HEIGHT; j++){
 				double theta = j * deltay.valueRadians() - (fovy.valueRadians()/2.0);
 
 				double posy_tmp = tan(M_PI/2.0 - fovy_tmp/2.0)/tan(M_PI/2.0 - theta);
@@ -5003,7 +4817,7 @@ bool SgvMain::getDistanceImage(Ogre::Camera *cam, unsigned char *distance, doubl
 				MessageBox( NULL, tmp, "Error", MB_OK);
 				*/
 
-				int tmp_pos = 320*j+i;
+				int tmp_pos = IMAGE_WIDTH*j+i;
 
 				if(abs(posy_tmp) > 1.0) {
 
@@ -5013,15 +4827,15 @@ bool SgvMain::getDistanceImage(Ogre::Camera *cam, unsigned char *distance, doubl
 
 				double disy = posy_tmp*height/2;
 
-				int posy = (int)(posy_tmp*120.0 + 0.5 + 120.0);
+				int posy = (int)(posy_tmp*IMAGE_HEIGHT / 2.0 + 0.5 + IMAGE_HEIGHT / 2.0);
 
-				if(posy == 240) posy--;
+				if(posy == IMAGE_HEIGHT) posy--;
 
 				double dist = sqrt(disx*disx + disy*disy);
 
 				double angle = atan(dist);
 
-				unsigned char data = tmpImage[320*3*posy+3*posx];
+				unsigned char data = tmpImage[IMAGE_WIDTH*3*posy+3*posx];
 
 				Ogre::Real offset_diff = 256/range*(offset/cos(angle) - offset);
 
@@ -5057,20 +4871,20 @@ bool SgvMain::getDepthImage(Ogre::Camera *cam, unsigned char *distance, double o
 	Ogre::Radian fovx = Ogre::Radian(2*atan(tan(fovy.valueRadians()*0.5)*ar));
 
 	// for blit 
-	unsigned char *tmpImage = new unsigned char[320*240*3];
+	unsigned char *tmpImage = new unsigned char[IMAGE_WIDTH*IMAGE_HEIGHT*3];
 
 	mDstTex->getBuffer()->getRenderTarget()->update();
 	Ogre::HardwarePixelBufferSharedPtr buf = mDstTex->getBuffer();
 
 	// blit
 	buf->blitToMemory(
-		Box(0, 0, 0, 320, 240, 1),
-		PixelBox(320, 240, 1, Ogre::PF_R8G8B8, tmpImage));
+		Box(0, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT, 1),
+		PixelBox(IMAGE_WIDTH, IMAGE_HEIGHT, 1, Ogre::PF_R8G8B8, tmpImage));
 
-	for(int i = 0; i < 240; i++){
-		for(int j = 0; j < 320; j++) {
+	for(int i = 0; i < IMAGE_HEIGHT; i++){
+		for(int j = 0; j < IMAGE_WIDTH; j++) {
 
-			distance[i*320+j] = tmpImage[i*320*3+j*3];
+			distance[i*IMAGE_WIDTH+j] = tmpImage[i*IMAGE_WIDTH*3+j*3];
 		}
 	}
 	delete [] tmpImage;

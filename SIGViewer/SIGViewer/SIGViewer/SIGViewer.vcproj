@@ -40,11 +40,10 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;..\..\OgreSDK_vc9_v1-8-0\include&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\include\OIS&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\include\OGRE&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\Samples\Common\include&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\boost&quot;;&quot;..\..\CEGUI-0.7.6\cegui\include&quot;;..\..\jdk\include;..\..\jdk\include\win32;.\x3d\parser\cpp\X3DParser;..\..\boost\boost_1_47;&quot;..\..\libssh2-1.2.7-openssl-x86-win32nt-msvc\include&quot;;..\..\zlib\include;..\..\..\SIGService\vs2008\SIGService"
-				MinimalRebuild="false"
+				AdditionalIncludeDirectories="&quot;..\..\OgreSDK_vc9_v1-8-0\include&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\include\OIS&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\include\OGRE&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\Samples\Common\include&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\boost&quot;;&quot;..\..\CEGUI-0.7.6\cegui\include&quot;;..\..\\jdk\include;..\..\jdk\include\win32;.\x3d\parser\cpp\X3DParser;..\..\boost\boost_1_47;&quot;..\..\libssh2-1.2.7-openssl-x86-win32nt-msvc\include&quot;;..\..\zlib\include"
+				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
-				EnableFunctionLevelLinking="true"
 				WarningLevel="3"
 				DebugInformationFormat="4"
 			/>
@@ -59,8 +58,8 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="OgreMain_d.lib OIS_d.lib OgreTerrain_d.lib comctl32.lib ws2_32.lib winmm.lib CEGUIBase.lib CEGUIOgreRenderer.lib jvm.lib zdll.lib SIGService.lib"
-				AdditionalLibraryDirectories="&quot;..\..\OgreSDK_vc9_v1-8-0\lib\Debug&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\boost\lib&quot;;&quot;..\..\CEGUI-0.7.6\lib&quot;;..\..\jdk\lib;..\..\boost\boost_1_47\lib;&quot;..\..\libssh2-1.2.7-openssl-x86-win32nt-msvc\lib&quot;;..\..\zlib\lib;..\..\..\SIGService\vs2008\Debug"
+				AdditionalDependencies="OgreMain_d.lib OIS_d.lib OgreTerrain_d.lib comctl32.lib ws2_32.lib winmm.lib CEGUIBase_d.lib CEGUIOgreRenderer_d.lib jvm.lib zdll.lib"
+				AdditionalLibraryDirectories="&quot;..\..\OgreSDK_vc9_v1-8-0\lib\$(ConfigurationName)&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\boost\lib&quot;;&quot;..\..\CEGUI-0.7.6\lib&quot;;..\..\jdk\lib;..\..\boost\boost_1_47\lib;&quot;..\..\libssh2-1.2.7-openssl-x86-win32nt-msvc\lib&quot;;..\..\zlib\lib"
 				GenerateDebugInformation="true"
 				TargetMachine="1"
 			/>
@@ -114,7 +113,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="&quot;..\..\OgreSDK_vc9_v1-8-0\include&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\include\OIS&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\include\OGRE&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\Samples\Common\include&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\boost&quot;;&quot;..\..\CEGUI-0.7.6\cegui\include&quot;;..\..\jdk\include;..\..\jdk\include\win32;.\x3d\parser\cpp\X3DParser;..\..\boost\boost_1_47;&quot;..\..\libssh2-1.2.7-openssl-x86-win32nt-msvc\include&quot;;..\..\zlib\include;..\..\..\SIGService\vs2008\SIGService"
+				AdditionalIncludeDirectories="&quot;..\..\OgreSDK_vc9_v1-8-0\include&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\include\OIS&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\include\OGRE&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\Samples\Common\include&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\boost&quot;;&quot;..\..\CEGUI-0.7.6\cegui\include&quot;;..\..\\jdk\include;..\..\jdk\include\win32;.\x3d\parser\cpp\X3DParser;..\..\boost\boost_1_47;&quot;..\..\libssh2-1.2.7-openssl-x86-win32nt-msvc\include&quot;;..\..\zlib\include"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				WarningLevel="3"
@@ -131,8 +130,8 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="OgreMain.lib OIS.lib OgreTerrain.lib comctl32.lib ws2_32.lib winmm.lib CEGUIBase.lib CEGUIOgreRenderer.lib jvm.lib zdll.lib SIGService.lib"
-				AdditionalLibraryDirectories="&quot;..\..\OgreSDK_vc9_v1-8-0\lib\$(ConfigurationName)&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\boost\lib&quot;;&quot;..\..\CEGUI-0.7.6\lib&quot;;..\..\jdk\lib;..\..\boost\boost_1_47\lib;&quot;..\..\libssh2-1.2.7-openssl-x86-win32nt-msvc\lib&quot;;..\..\zlib\lib;..\..\..\SIGService\vs2008\Release"
+				AdditionalDependencies="OgreMain.lib OIS.lib OgreTerrain.lib comctl32.lib ws2_32.lib winmm.lib CEGUIBase.lib CEGUIOgreRenderer.lib jvm.lib zdll.lib"
+				AdditionalLibraryDirectories="&quot;..\..\OgreSDK_vc9_v1-8-0\lib\$(ConfigurationName)&quot;;&quot;..\..\OgreSDK_vc9_v1-8-0\boost\lib&quot;;&quot;..\..\CEGUI-0.7.6\lib&quot;;..\..\jdk\lib;..\..\boost\boost_1_47\lib;&quot;..\..\libssh2-1.2.7-openssl-x86-win32nt-msvc\lib&quot;;..\..\zlib\lib"
 				GenerateDebugInformation="true"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
@@ -331,7 +330,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\SgvSocket.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\SgvX3D.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\SIGService.cpp"
 				>
 			</File>
 			<File
@@ -350,6 +357,10 @@
 			>
 			<File
 				RelativePath=".\BaseApplication.h"
+				>
+			</File>
+			<File
+				RelativePath=".\binary.h"
 				>
 			</File>
 			<File
@@ -521,7 +532,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\SgvSocket.h"
+				>
+			</File>
+			<File
 				RelativePath=".\SgvX3D.h"
+				>
+			</File>
+			<File
+				RelativePath=".\SIGService.h"
 				>
 			</File>
 			<File
@@ -540,6 +559,18 @@
 			>
 			<File
 				RelativePath=".\SIGViewer.rc"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="Utility"
+			>
+			<File
+				RelativePath=".\Utility.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Utility.h"
 				>
 			</File>
 		</Filter>
